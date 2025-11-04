@@ -214,8 +214,61 @@ def dedupe(jobs):
 
 # ---- email helpers
 def build_html(jobs):
+    # if no jobs, show friendly message
     if not jobs:
-        return "<p>No new matching roles in the last 24 hours.</p>"
+        return """
+        <div style="font-family:Arial,sans-serif;padding:20px;color:#333;">
+            <h2 style="color:#222;">No new CRM / Retention openings today ✨</h2>
+            <p>We'll keep checking and send you the next update tomorrow morning.</p>
+            <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
+            <p style="font-size:12px;color:#888;">Automated daily digest • CRM & Loyalty jobs • Generated at {time}</p>
+        </div>
+        """.format(time=now_ist().strftime("%Y-%m-%d %H:%M IST"))
+
+    # group jobs by country (India / UAE / Others)
+    india, uae, others = [], [], []
+    for j in jobs:
+        loc = (j.get("location") or "").lower()
+        if any(x in loc for x in ["india", "bengaluru", "mumbai", "delhi", "pune", "chennai", "gurugram", "hyderabad"]):
+            india.append(j)
+        elif any(x in loc for x in ["dubai", "abu dhabi", "uae", "united arab emirates"]):
+            uae.append(j)
+        else:
+            others.append(j)
+
+    def make_section(title, jobs_list):
+        if not jobs_list:
+            return ""
+        rows = []
+        for j in sorted(jobs_list, key=lambda x: x["posted"], reverse=True):
+            ts = j["posted"].strftime("%d %b %Y, %H:%M")
+            rows.append(f"""
+                <tr>
+                    <td style="padding:6px 10px;">
+                        <b style="color:#333;">{j['title']}</b><br>
+                        <span style="color:#555;">{j['company']}</span> — <i>{j['location']}</i><br>
+                        <span style="color:#888;font-size:12px;">{ts} IST · <a href="{j['url']}">Apply</a></span>
+                    </td>
+                </tr>
+            """)
+        return f"""
+            <h3 style="background:#f5f5f5;padding:8px 12px;border-radius:6px;">{title} ({len(jobs_list)})</h3>
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">{''.join(rows)}</table>
+        """
+
+    html = f"""
+    <div style="font-family:Arial,sans-serif;padding:20px;color:#222;">
+        <h2 style="margin-top:0;">🧠 CRM / Retention Job Digest — {now_ist().strftime('%a, %b %d')}</h2>
+        <p>Here are the latest CRM, Retention & Martech openings posted in the last 24 hours.</p>
+        {make_section("🇮🇳 India", india)}
+        {make_section("🇦🇪 UAE", uae)}
+        {make_section("🌍 Others", others)}
+        <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
+        <p style="font-size:12px;color:#888;">Automated daily digest • Generated at {now_ist().strftime("%Y-%m-%d %H:%M IST")}</p>
+    </div>
+    """
+    return html
+
     jobs_sorted = sorted(jobs, key=lambda x: x["posted"], reverse=True)
     items = []
     for j in jobs_sorted:
