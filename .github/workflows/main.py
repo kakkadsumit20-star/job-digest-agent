@@ -1,6 +1,6 @@
 import os, hashlib, requests, yaml
 from datetime import datetime, timedelta, timezone
-from email.mime_text import MIMEText
+from email.mime.text import MIMEText
 import smtplib
 
 # ---- time helpers (IST + 24h cutoff)
