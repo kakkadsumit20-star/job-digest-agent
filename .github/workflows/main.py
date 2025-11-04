@@ -1,4 +1,4 @@
-import os, hashlib, requests, yaml
+import os, re, hashlib, requests, yaml
 from datetime import datetime, timedelta, timezone
 from email.mime.text import MIMEText
 import smtplib
@@ -9,7 +9,6 @@ def now_ist(): return datetime.now(IST)
 def cutoff_24h(): return now_ist() - timedelta(hours=24)
 
 def to_ist(dt):
-    # handle ISO (e.g., "2024-10-01T12:00:00Z") or epoch ms
     if isinstance(dt, datetime): return dt.astimezone(IST)
     if isinstance(dt, str):
         try: return datetime.fromisoformat(dt.replace("Z","+00:00")).astimezone(IST)
@@ -17,12 +16,30 @@ def to_ist(dt):
     try: return datetime.fromtimestamp(int(dt)/1000, tz=IST)
     except: return now_ist()
 
+# ---- relative "posted_at" like "6 hours ago" -> datetime
+_rel_re = re.compile(r"(\d+)\s+(minute|hour|day|week|month)s?\s+ago", re.I)
+def from_relative(s: str):
+    s = (s or "").lower().strip()
+    if s == "yesterday": return now_ist() - timedelta(days=1)
+    m = _rel_re.search(s)
+    if not m: 
+        # unknown -> assume now to avoid dropping fresh jobs
+        return now_ist()
+    n, unit = int(m.group(1)), m.group(2)
+    if unit.startswith("minute"): delta = timedelta(minutes=n)
+    elif unit.startswith("hour"): delta = timedelta(hours=n)
+    elif unit.startswith("day"): delta = timedelta(days=n)
+    elif unit.startswith("week"): delta = timedelta(weeks=n)
+    elif unit.startswith("month"): delta = timedelta(days=30*n)
+    else: delta = timedelta(days=365)
+    return now_ist() - delta
+
 # ---- config
 def load_cfg(path="sources.yaml"):
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 
-# ---- sources (ATS APIs)
+# ---- ATS sources (kept from before)
 def fetch_greenhouse(board):
     url = f"https://boards-api.greenhouse.io/v1/boards/{board}/jobs"
     data = requests.get(url, timeout=25).json().get("jobs", [])
@@ -69,11 +86,52 @@ def fetch_ashby(company):
         })
     return out
 
+# ---- SerpAPI (Google Jobs)
+def fetch_serpapi(q: str, location: str):
+    api_key = os.environ.get("SERPAPI_KEY")
+    if not api_key: 
+        return []
+    params = {
+        "engine": "google_jobs",
+        "q": q,
+        "location": location,
+        "hl": "en",
+        "api_key": api_key
+    }
+    r = requests.get("https://serpapi.com/search.json", params=params, timeout=30)
+    data = r.json()
+    results = data.get("jobs_results", []) or []
+    out=[]
+    for j in results:
+        title = j.get("title","")
+        company = j.get("company_name","")
+        loc = j.get("location","") or location
+        # prefer direct apply link if present
+        url = j.get("apply_options", [{}])[0].get("link") or j.get("job_google_link") or j.get("link","")
+        posted_rel = (j.get("detected_extensions") or {}).get("posted_at") or ""
+        posted = from_relative(posted_rel) if posted_rel else now_ist()
+        out.append({
+            "title": title,
+            "company": company,
+            "location": loc,
+            "url": url,
+            "posted": posted,
+            "source": f"serpapi:{location}"
+        })
+    return out
+
 def fetch_all(cfg):
     jobs=[]
+    # ATS feeds
     for b in cfg.get("greenhouse_boards",[]) or []: jobs += fetch_greenhouse(b)
     for c in cfg.get("lever_companies",[]) or []: jobs += fetch_lever(c)
     for c in cfg.get("ashby_companies",[]) or []: jobs += fetch_ashby(c)
+    # Google Jobs via SerpAPI — focused queries for CRM/Retention in India & Dubai/UAE
+    # you can tweak these later
+    crm_query = '(CRM OR "Customer Retention" OR Retention OR "Lifecycle Marketing" OR "Marketing Automation" OR Loyalty) (Marketing OR Manager OR Lead OR Specialist)'
+    jobs += fetch_serpapi(crm_query, "India")
+    jobs += fetch_serpapi(crm_query, "Dubai, United Arab Emirates")
+    jobs += fetch_serpapi(crm_query, "United Arab Emirates")
     return jobs
 
 # ---- filtering + dedupe
