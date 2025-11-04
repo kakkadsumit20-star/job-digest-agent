@@ -2,8 +2,8 @@ name: Daily Job Digest
 
 on:
   schedule:
-    - cron: "0 2 * * *"   # 02:00 UTC = 07:30 IST (runs every morning)
-  workflow_dispatch:      # lets you run it manually
+    - cron: "0 2 * * *"   # 02:00 UTC = 07:30 IST, runs daily
+  workflow_dispatch:      # allow manual runs
 
 jobs:
   run:
@@ -17,12 +17,18 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install deps
-        run: pip install -r requirements.txt
+      - name: Install deps (skip if no requirements.txt)
+        run: |
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            echo "No requirements.txt found, skipping pip install."
+          fi
 
       - name: Run script
         env:
           GMAIL_USERNAME: ${{ secrets.GMAIL_USERNAME }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           TO_EMAIL: ${{ secrets.TO_EMAIL }}
+          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
         run: python main.py
