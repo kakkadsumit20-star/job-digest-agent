@@ -1,0 +1,10 @@
+# what you care about
+keywords: ["CRM", "Retention", "Martech", "Lifecycle", "Marketing Automation", "Loyalty", "Engagement", "Braze", "WebEngage", "MoEngage", "CleverTap"]
+locations: ["India", "Bengaluru", "Mumbai", "Hyderabad", "Delhi", "Gurugram", "Pune", "Chennai", "Remote", "Dubai", "UAE", "Abu Dhabi"]
+
+# start with ATS sources (clean + allowed)
+greenhouse_boards: []    # e.g., marhabaauctions
+lever_companies: []      # e.g., shoppersstop
+ashby_companies: []      # e.g., ExampleCo
+
+# we’ll handle job portals in a later step
