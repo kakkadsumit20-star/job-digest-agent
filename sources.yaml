@@ -7,4 +7,5 @@ greenhouse_boards: []    # e.g., marhabaauctions
 lever_companies: []      # e.g., shoppersstop
 ashby_companies: []      # e.g., ExampleCo
 
+
 # we’ll handle job portals in a later step
